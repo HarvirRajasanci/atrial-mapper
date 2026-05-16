@@ -1,0 +1,42 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'com.atrialmapper'
+version = '1.0'
+
+application {
+    mainClass = 'com.atrialmapper.Main'
+}
+
+repositories {
+    mavenCentral()
+}
+
+def lwjglVersion = '3.3.3'
+def lwjglNatives = 'natives-macos-arm64' // change to 'natives-macos' if you have an Intel Mac
+
+dependencies {
+    implementation platform("org.lwjgl:lwjgl-bom:${lwjglVersion}")
+
+    implementation 'org.lwjgl:lwjgl'
+    implementation 'org.lwjgl:lwjgl-glfw'
+    implementation 'org.lwjgl:lwjgl-opengl'
+    implementation 'org.lwjgl:lwjgl-stb'
+
+    runtimeOnly "org.lwjgl:lwjgl::${lwjglNatives}"
+    runtimeOnly "org.lwjgl:lwjgl-glfw::${lwjglNatives}"
+    runtimeOnly "org.lwjgl:lwjgl-opengl::${lwjglNatives}"
+    runtimeOnly "org.lwjgl:lwjgl-stb::${lwjglNatives}"
+}
+
+jar {
+    manifest {
+        attributes 'Main-Class': 'com.atrialmapper.Main'
+    }
+}
+
+run {
+    jvmArgs '-XstartOnFirstThread'
+}
