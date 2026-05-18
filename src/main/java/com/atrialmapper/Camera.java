@@ -22,12 +22,11 @@ public class Camera {
     private static final float MIN_PITCH = -89f;
     private static final float MAX_PITCH = 89f;
 
-    private void registerCallbacks(long windowHandle){
+    public void registerCallbacks(long windowHandle){
         glfwSetMouseButtonCallback(windowHandle, (window, button, action, mods) -> {
-            if (button == GLFW_GAMEPAD_BUTTON_LAST) {
+            if (button == GLFW_MOUSE_BUTTON_LEFT) {
                 isMouseDragging = action == GLFW_PRESS;
 
-                // Snapshot mouse position when drag starts
                 double[] mouseX = new double[1];
                 double[] mouseY = new double[1];
                 glfwGetCursorPos(window, mouseX, mouseY);
@@ -55,6 +54,57 @@ public class Camera {
         });
     }
 
-    // TODO: Build a view matrix from the current spherical coordinates
-//    public float[] computeViewMatrix() {}
+    // Builds a view matrix from the current spherical coordinates
+    public float[] computeViewMatrix() {
+        float yawRadians = (float) Math.toRadians(yawDegrees);
+        float pitchRadians = (float) Math.toRadians(pitchDegrees);
+
+        // Convert spherical -> cartesian to get camera position
+        float cameraX = (float)(distanceFromTarget * Math.cos(pitchRadians) * Math.sin(yawRadians));
+        float cameraY = (float)(distanceFromTarget * Math.sin(pitchRadians));
+        float cameraZ = (float)(distanceFromTarget * Math.cos(pitchRadians) * Math.cos(yawRadians));
+
+        // Build orthonormal basis vectors for the camera
+        float[] forwardVector = normalize(new float[]{ -cameraX, -cameraY, -cameraZ });
+        float[] worldUp = { 0f, 1f, 0f };
+        float[] rightVector = normalize(cross(forwardVector, worldUp));
+        float[] upVector = cross(rightVector, forwardVector);
+
+        float[] cameraPosition = { cameraX, cameraY, cameraZ };
+
+        // Column-major view matrix (what OpenGL expects)
+        return new float[]{
+                rightVector[0],   upVector[0],  -forwardVector[0],  0f,
+                rightVector[1],   upVector[1],  -forwardVector[1],  0f,
+                rightVector[2],   upVector[2],  -forwardVector[2],  0f,
+                -dot(rightVector, cameraPosition),
+                -dot(upVector, cameraPosition),
+                dot(forwardVector, cameraPosition), 1f
+        };
+    }
+
+    // --- Vector math helpers ---
+
+    private float[] normalize(float[] vector) {
+        float length = (float) Math.sqrt(
+                vector[0] * vector[0] +
+                        vector[1] * vector[1] +
+                        vector[2] * vector[2]
+        );
+        return new float[]{ vector[0] / length, vector[1] / length, vector[2] / length };
+    }
+
+    private float[] cross(float[] vectorA, float[] vectorB) {
+        return new float[]{
+                vectorA[1] * vectorB[2] - vectorA[2] * vectorB[1],
+                vectorA[2] * vectorB[0] - vectorA[0] * vectorB[2],
+                vectorA[0] * vectorB[1] - vectorA[1] * vectorB[0]
+        };
+    }
+
+    private float dot(float[] vectorA, float[] vectorB) {
+        return vectorA[0] * vectorB[0] +
+                vectorA[1] * vectorB[1] +
+                vectorA[2] * vectorB[2];
+    }
 }
