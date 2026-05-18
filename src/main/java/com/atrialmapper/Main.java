@@ -19,6 +19,7 @@ public class Main {
     private Shader shader;
     private Mesh sphereMesh;
     private Camera camera;
+    private DataSimulator dataSimulator;
 
     // --- GLSL Shader Sources ---
 
@@ -97,6 +98,9 @@ public class Main {
         sphereMesh = new Mesh(SPHERE_STACKS, SPHERE_SLICES);
         camera = new Camera();
         camera.registerCallbacks(windowHandle);
+
+        int totalVertexCount = (SPHERE_STACKS + 1) * (SPHERE_SLICES + 1);
+        dataSimulator = new DataSimulator(totalVertexCount);
     }
 
     private void runGameLoop() {
@@ -107,6 +111,9 @@ public class Main {
             float[] viewMatrix = camera.computeViewMatrix();
             float[] modelMatrix = buildIdentityMatrix();
             float[] mvpMatrix = multiply(multiply(projectionMatrix, viewMatrix), modelMatrix);
+            
+            dataSimulator.update(0.016f); // ~60fps timestep
+            sphereMesh.updateVertexValues(dataSimulator.getElectrodeValues());
 
             shader.bind();
             shader.setUniformMatrix4("uMVPMatrix", mvpMatrix);
