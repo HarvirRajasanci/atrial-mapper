@@ -28,10 +28,15 @@ public class FontRenderer {
     private STBTTBakedChar.Buffer bakedCharData;
 
     public FontRenderer() throws IOException {
-        bakedCharData   = STBTTBakedChar.malloc(CHAR_COUNT);
-        buildFontTexture();
-        buildRenderingBuffers();
-        shaderProgramId = ShaderCompiler.buildProgram("shaders/font.vert", "shaders/font.frag");
+        try {
+            bakedCharData   = STBTTBakedChar.malloc(CHAR_COUNT);
+            buildFontTexture();
+            buildRenderingBuffers();
+            shaderProgramId = ShaderCompiler.buildProgram("shaders/font.vert", "shaders/font.frag");
+        } catch (Exception e) {
+            cleanup();
+            throw new IOException("FontRenderer initialization failed", e);
+        }
     }
 
     private void buildFontTexture() throws IOException {
@@ -44,23 +49,23 @@ public class FontRenderer {
         inputStream.close();
 
         ByteBuffer fontBuffer   = memAlloc(fontFileBytes.length);
-        fontBuffer.put(fontFileBytes).flip();
-
         ByteBuffer bitmapBuffer = memAlloc(BITMAP_WIDTH * BITMAP_HEIGHT);
-        stbtt_BakeFontBitmap(fontBuffer, FONT_SIZE_PX, bitmapBuffer,
-                BITMAP_WIDTH, BITMAP_HEIGHT, FIRST_CHAR, bakedCharData);
+        try {
+            fontBuffer.put(fontFileBytes).flip();
+            stbtt_BakeFontBitmap(fontBuffer, FONT_SIZE_PX, bitmapBuffer,
+                    BITMAP_WIDTH, BITMAP_HEIGHT, FIRST_CHAR, bakedCharData);
 
-        memFree(fontBuffer);
-
-        fontTextureId = glGenTextures();
-        glBindTexture(GL_TEXTURE_2D, fontTextureId);
-        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RED,
-                BITMAP_WIDTH, BITMAP_HEIGHT, 0, GL_RED, GL_UNSIGNED_BYTE, bitmapBuffer);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-        memFree(bitmapBuffer);
+            fontTextureId = glGenTextures();
+            glBindTexture(GL_TEXTURE_2D, fontTextureId);
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RED,
+                    BITMAP_WIDTH, BITMAP_HEIGHT, 0, GL_RED, GL_UNSIGNED_BYTE, bitmapBuffer);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        } finally {
+            memFree(fontBuffer);
+            memFree(bitmapBuffer);
+        }
     }
 
     private void buildRenderingBuffers() {
