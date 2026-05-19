@@ -6,64 +6,33 @@ import static org.lwjgl.opengl.GL33.*;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.opengl.GL;
 
+import java.io.IOException;
+
 public class Main {
 
-    private static final int WINDOW_WIDTH = 1280;
-    private static final int WINDOW_HEIGHT = 720;
-    private static final String WINDOW_TITLE = "Atrial Mapper";
-
-    private static final int SPHERE_STACKS = 40;
-    private static final int SPHERE_SLICES = 40;
+    private static final int    WINDOW_WIDTH           = 1280;
+    private static final int    WINDOW_HEIGHT          = 720;
+    private static final String WINDOW_TITLE           = "Atrial Mapper";
+    private static final int    SPHERE_STACKS          = 40;
+    private static final int    SPHERE_SLICES          = 40;
+    private static final float  FIELD_OF_VIEW_DEGREES  = 60f;
+    private static final float  NEAR_PLANE             = 0.1f;
+    private static final float  FAR_PLANE              = 100f;
+    private static final float  MODEL_ROTATION_DEGREES = -90f;
+    private static final float  AUTO_ROTATION_SPEED    = 20f;
 
     private long windowHandle;
     private Shader shader;
     private Mesh sphereMesh;
     private Camera camera;
-    private DataSimulator dataSimulator;
+    private ElectrodeDataStream electrodeDataStream;
+    private ColorLegend colorLegend;
 
-    // --- GLSL Shader Sources ---
-
-    private static final String VERTEX_SHADER_SOURCE = """
-        #version 330 core
-        layout(location = 0) in vec3 aPosition;
-        layout(location = 1) in vec3 aNormal;
-        layout(location = 2) in float aElectrodeValue;
-
-        out vec3 fragmentNormal;
-        out float electrodeValue;
-
-        uniform mat4 uMVPMatrix;
-        uniform mat4 uModelMatrix;
-
-        void main() {
-            gl_Position = uMVPMatrix * vec4(aPosition, 1.0);
-            fragmentNormal = normalize(mat3(uModelMatrix) * aNormal);
-            electrodeValue = aElectrodeValue;
-        }
-        """;
-
-    private static final String FRAGMENT_SHADER_SOURCE = """
-        #version 330 core
-        in vec3 fragmentNormal;
-        in float electrodeValue;
-        out vec4 outputColor;
-
-        uniform vec3 uLightDirection;
-
-        vec3 heatmapColor(float value) {
-            value = clamp(value, 0.0, 1.0);
-            float red   = smoothstep(0.5, 1.0, value);
-            float green = smoothstep(0.0, 0.5, value) - smoothstep(0.75, 1.0, value);
-            float blue  = 1.0 - smoothstep(0.0, 0.5, value);
-            return vec3(red, green, blue);
-        }
-
-        void main() {
-            vec3 surfaceColor = heatmapColor(electrodeValue);
-            float lightIntensity = max(dot(normalize(fragmentNormal), normalize(uLightDirection)), 0.15);
-            outputColor = vec4(surfaceColor * lightIntensity, 1.0);
-        }
-        """;
+    private float autoRotationAngle = 0f;
+    private long lastFrameTime  = System.currentTimeMillis();
+    private long lastFpsTime    = System.currentTimeMillis();
+    private int frameCount      = 0;
+    private boolean isWireframeMode = false;
 
     public void run() {
         initializeWindow();
@@ -94,74 +63,111 @@ public class Main {
         glEnable(GL_DEPTH_TEST);
         glClearColor(0.08f, 0.08f, 0.12f, 1f);
 
-        shader = new Shader(VERTEX_SHADER_SOURCE, FRAGMENT_SHADER_SOURCE);
-        sphereMesh = new Mesh(SPHERE_STACKS, SPHERE_SLICES);
+        try {
+            shader = new Shader("shaders/surface.vert", "shaders/surface.frag");
+        } catch (IOException ioException) {
+            throw new RuntimeException("Failed to load shaders: " + ioException.getMessage());
+        }
+
+        try {
+            MeshData heartMeshData = StlLoader.loadFromResources("heart.stl");
+            sphereMesh = new Mesh(heartMeshData);
+            electrodeDataStream = new ElectrodeDataStream(
+                    heartMeshData.vertexCount,
+                    heartMeshData.vertexData
+            );
+        } catch (IOException ioException) {
+            System.err.println("Could not load heart.stl, falling back to sphere: "
+                    + ioException.getMessage());
+            sphereMesh = new Mesh(SPHERE_STACKS, SPHERE_SLICES);
+            int totalVertexCount   = (SPHERE_STACKS + 1) * (SPHERE_SLICES + 1);
+            float[] flatVertexData = new float[totalVertexCount * 7];
+            electrodeDataStream    = new ElectrodeDataStream(totalVertexCount, flatVertexData);
+        }
+
+        electrodeDataStream.start();
+
         camera = new Camera();
         camera.registerCallbacks(windowHandle);
 
-        int totalVertexCount = (SPHERE_STACKS + 1) * (SPHERE_SLICES + 1);
-        dataSimulator = new DataSimulator(totalVertexCount);
+        try {
+            colorLegend = new ColorLegend(WINDOW_WIDTH, WINDOW_HEIGHT);
+        } catch (IOException ioException) {
+            throw new RuntimeException("Failed to initialize color legend: "
+                    + ioException.getMessage());
+        }
+
+        registerKeyCallbacks();
+    }
+
+    private void registerKeyCallbacks() {
+        glfwSetKeyCallback(windowHandle, (window, key, scancode, action, mods) -> {
+            if (key == GLFW_KEY_W && action == GLFW_PRESS) {
+                isWireframeMode = !isWireframeMode;
+                glPolygonMode(GL_FRONT_AND_BACK, isWireframeMode ? GL_LINE : GL_FILL);
+            }
+        });
     }
 
     private void runGameLoop() {
         while (!glfwWindowShouldClose(windowHandle)) {
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-            float[] projectionMatrix = buildProjectionMatrix();
-            float[] viewMatrix = camera.computeViewMatrix();
-            float[] modelMatrix = buildIdentityMatrix();
-            float[] mvpMatrix = multiply(multiply(projectionMatrix, viewMatrix), modelMatrix);
-            
-            dataSimulator.update(0.016f); // ~60fps timestep
-            sphereMesh.updateVertexValues(dataSimulator.getElectrodeValues());
+            long currentFrameTime  = System.currentTimeMillis();
+            float deltaTimeSeconds = (currentFrameTime - lastFrameTime) / 1000f;
+            lastFrameTime          = currentFrameTime;
+
+            if (!camera.isUserDragging()) {
+                autoRotationAngle += AUTO_ROTATION_SPEED * deltaTimeSeconds;
+                if (autoRotationAngle > 360f) autoRotationAngle -= 360f;
+            }
+
+            float aspectRatio  = (float) WINDOW_WIDTH / WINDOW_HEIGHT;
+            float[] projection = MatrixMath.buildProjectionMatrix(
+                    FIELD_OF_VIEW_DEGREES, aspectRatio, NEAR_PLANE, FAR_PLANE);
+            float[] view       = camera.computeViewMatrix();
+            float[] model      = buildModelMatrix();
+            float[] mvpMatrix  = MatrixMath.multiply(
+                    MatrixMath.multiply(projection, view), model);
+
+            sphereMesh.updateVertexValues(electrodeDataStream.pollLatestValues());
 
             shader.bind();
             shader.setUniformMatrix4("uMVPMatrix", mvpMatrix);
-            shader.setUniformMatrix4("uModelMatrix", modelMatrix);
+            shader.setUniformMatrix4("uModelMatrix", model);
             shader.setUniformVec3("uLightDirection", 1f, 1.5f, 1f);
 
             sphereMesh.draw();
+            colorLegend.draw();
+            updateFpsCounter();
 
             glfwSwapBuffers(windowHandle);
             glfwPollEvents();
         }
     }
 
-    private float[] buildProjectionMatrix() {
-        float fieldOfView = (float) Math.toRadians(60f);
-        float aspectRatio = (float) WINDOW_WIDTH / WINDOW_HEIGHT;
-        float nearPlane = 0.1f;
-        float farPlane = 100f;
-        float frustumScale = (float)(1.0 / Math.tan(fieldOfView / 2));
-
-        float[] projectionMatrix = new float[16];
-        projectionMatrix[0]  = frustumScale / aspectRatio;
-        projectionMatrix[5]  = frustumScale;
-        projectionMatrix[10] = (farPlane + nearPlane) / (nearPlane - farPlane);
-        projectionMatrix[11] = -1f;
-        projectionMatrix[14] = (2 * farPlane * nearPlane) / (nearPlane - farPlane);
-        return projectionMatrix;
+    private float[] buildModelMatrix() {
+        float[] rotationX = MatrixMath.buildRotationX(MODEL_ROTATION_DEGREES);
+        float[] rotationY = MatrixMath.buildRotationY(autoRotationAngle);
+        return MatrixMath.multiply(rotationY, rotationX);
     }
 
-    private float[] buildIdentityMatrix() {
-        return new float[]{
-                1, 0, 0, 0,
-                0, 1, 0, 0,
-                0, 0, 1, 0,
-                0, 0, 0, 1
-        };
-    }
+    private void updateFpsCounter() {
+        frameCount++;
+        long currentTime = System.currentTimeMillis();
+        long elapsedTime = currentTime - lastFpsTime;
 
-    private float[] multiply(float[] matrixA, float[] matrixB) {
-        float[] result = new float[16];
-        for (int row = 0; row < 4; row++)
-            for (int col = 0; col < 4; col++)
-                for (int inner = 0; inner < 4; inner++)
-                    result[row + col * 4] += matrixA[row + inner * 4] * matrixB[inner + col * 4];
-        return result;
+        if (elapsedTime >= 1000) {
+            int fps = (int)(frameCount * 1000.0 / elapsedTime);
+            glfwSetWindowTitle(windowHandle, WINDOW_TITLE + "  |  " + fps + " FPS");
+            frameCount = 0;
+            lastFpsTime = currentTime;
+        }
     }
 
     private void cleanup() {
+        electrodeDataStream.stop();
+        colorLegend.cleanup();
         sphereMesh.cleanup();
         shader.cleanup();
         glfwDestroyWindow(windowHandle);
