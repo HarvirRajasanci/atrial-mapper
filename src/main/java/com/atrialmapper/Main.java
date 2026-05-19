@@ -3,9 +3,6 @@ package com.atrialmapper;
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL33.*;
 
-import org.lwjgl.glfw.GLFWErrorCallback;
-import org.lwjgl.opengl.GL;
-
 import java.io.IOException;
 
 public class Main {
@@ -21,7 +18,7 @@ public class Main {
     private static final float  MODEL_ROTATION_DEGREES = -90f;
     private static final float  AUTO_ROTATION_SPEED    = 20f;
 
-    private long windowHandle;
+    private WindowManager windowManager;
     private Shader shader;
     private Mesh sphereMesh;
     private Camera camera;
@@ -35,31 +32,14 @@ public class Main {
     private boolean isWireframeMode = false;
 
     public void run() {
-        initializeWindow();
+        windowManager = new WindowManager(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE);
+        windowManager.initialize();
         initializeOpenGL();
         runGameLoop();
         cleanup();
     }
 
-    private void initializeWindow() {
-        GLFWErrorCallback.createPrint(System.err).set();
-        if (!glfwInit()) throw new IllegalStateException("GLFW initialization failed");
-
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-
-        windowHandle = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE, 0, 0);
-        if (windowHandle == 0) throw new RuntimeException("Failed to create window");
-
-        glfwMakeContextCurrent(windowHandle);
-        glfwSwapInterval(1);
-        glfwShowWindow(windowHandle);
-    }
-
     private void initializeOpenGL() {
-        GL.createCapabilities();
         glEnable(GL_DEPTH_TEST);
         glClearColor(0.08f, 0.08f, 0.12f, 1f);
 
@@ -88,7 +68,7 @@ public class Main {
         electrodeDataStream.start();
 
         camera = new Camera();
-        camera.registerCallbacks(windowHandle);
+        camera.registerCallbacks(windowManager.getHandle());
 
         try {
             colorLegend = new ColorLegend(WINDOW_WIDTH, WINDOW_HEIGHT);
@@ -101,7 +81,7 @@ public class Main {
     }
 
     private void registerKeyCallbacks() {
-        glfwSetKeyCallback(windowHandle, (window, key, scancode, action, mods) -> {
+        glfwSetKeyCallback(windowManager.getHandle(), (window, key, scancode, action, mods) -> {
             if (key == GLFW_KEY_W && action == GLFW_PRESS) {
                 isWireframeMode = !isWireframeMode;
                 glPolygonMode(GL_FRONT_AND_BACK, isWireframeMode ? GL_LINE : GL_FILL);
@@ -110,7 +90,7 @@ public class Main {
     }
 
     private void runGameLoop() {
-        while (!glfwWindowShouldClose(windowHandle)) {
+        while (!windowManager.shouldClose()) {
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
             long currentFrameTime  = System.currentTimeMillis();
@@ -141,8 +121,7 @@ public class Main {
             colorLegend.draw();
             updateFpsCounter();
 
-            glfwSwapBuffers(windowHandle);
-            glfwPollEvents();
+            windowManager.swapAndPoll();
         }
     }
 
@@ -159,7 +138,7 @@ public class Main {
 
         if (elapsedTime >= 1000) {
             int fps = (int)(frameCount * 1000.0 / elapsedTime);
-            glfwSetWindowTitle(windowHandle, WINDOW_TITLE + "  |  " + fps + " FPS");
+            windowManager.setTitle(WINDOW_TITLE + "  |  " + fps + " FPS");
             frameCount = 0;
             lastFpsTime = currentTime;
         }
@@ -170,8 +149,7 @@ public class Main {
         colorLegend.cleanup();
         sphereMesh.cleanup();
         shader.cleanup();
-        glfwDestroyWindow(windowHandle);
-        glfwTerminate();
+        windowManager.destroy();
     }
 
     public static void main(String[] args) {
