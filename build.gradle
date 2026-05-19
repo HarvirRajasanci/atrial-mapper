@@ -3,6 +3,11 @@ plugins {
     id 'application'
 }
 
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+
 group = 'com.atrialmapper'
 version = '1.0'
 
@@ -29,6 +34,8 @@ dependencies {
     runtimeOnly "org.lwjgl:lwjgl-glfw::${lwjglNatives}"
     runtimeOnly "org.lwjgl:lwjgl-opengl::${lwjglNatives}"
     runtimeOnly "org.lwjgl:lwjgl-stb::${lwjglNatives}"
+
+    testImplementation 'junit:junit:4.13.2'
 }
 
 jar {
@@ -39,4 +46,8 @@ jar {
 
 run {
     jvmArgs '-XstartOnFirstThread'
+}
+
+test {
+    useJUnit()
 }
