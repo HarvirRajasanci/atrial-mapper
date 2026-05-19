@@ -21,14 +21,19 @@ maps the values to a blue→green→red color scale across the heart surface.
 
 | Class | Responsibility |
 |---|---|
-| `Main` | Window, game loop, projection matrix, key input |
-| `Shader` | Compiles GLSL shaders, uploads uniforms to GPU |
-| `Mesh` | GPU vertex buffers, sphere generation, STL loading |
+| `Main` | Game loop, projection matrix, key input |
+| `WindowManager` | GLFW window lifecycle, OpenGL capability check |
+| `ShaderCompiler` | Shared GLSL compile/link logic used by all shader pipelines |
+| `Shader` | Surface shader — compiles GLSL, uploads uniforms to GPU |
+| `Mesh` | GPU vertex buffers, sphere generation, STL mesh support |
 | `Camera` | Spherical orbit camera, mouse/scroll callbacks |
 | `ElectrodeDataStream` | Background producer thread, `AtomicReference` handoff |
-| `DataSimulator` | Spatially accurate wave simulation using vertex positions |
+| `DataSimulator` | SA-node activation and reentrant wave simulation |
 | `StlLoader` | ASCII and binary STL parser, normalizes mesh to unit scale |
-| `ColorLegend` | 2D screen-space gradient overlay, independent shader |
+| `MeshData` | Data transfer object between `StlLoader` and `Mesh` |
+| `MatrixMath` | 4×4 matrix utilities (projection, rotation, multiply) |
+| `ColorLegend` | Responsive 2D voltage scale overlay with tick labels |
+| `FontRenderer` | TrueType font atlas rendering via STB |
 
 ---
 
@@ -55,3 +60,5 @@ Producer thread: [simulate]    → [publish]        → [sleep 16ms] → repeat
 ```bash
 ./gradlew run
 ```
+
+> **IntelliJ:** add `-XstartOnFirstThread` to VM options in your run configuration (required for GLFW on macOS).
