@@ -11,24 +11,31 @@ public class Mesh {
     private int vertexBufferObjectId;
     private int elementBufferObjectId;
     private int indexCount;
+    private int vertexCount = 0;
+    private float[] cachedVertexData;
 
-    // Each vertex has: position (xyz), normal (xyz), value (float) = 7 floats
     private static final int FLOATS_PER_VERTEX = 7;
-    private static final int STRIDE_BYTES = FLOATS_PER_VERTEX * Float.BYTES;
+    private static final int STRIDE_BYTES      = FLOATS_PER_VERTEX * Float.BYTES;
 
-    // Attribute layout locations (must match vertex shader)
     private static final int ATTRIB_POSITION = 0;
-    private static final int ATTRIB_NORMAL = 1;
-    private static final int ATTRIB_VALUE = 2;
+    private static final int ATTRIB_NORMAL   = 1;
+    private static final int ATTRIB_VALUE    = 2;
 
+    // Constructor 1 — procedural sphere
     public Mesh(int stackCount, int sliceCount) {
-        float[] vertexData = buildVertexData(stackCount, sliceCount);
-        int[] indexData = buildIndexData(stackCount, sliceCount);
-        indexCount = indexData.length;
-        uploadToGpu(vertexData, indexData);
+        float[] vertexData = buildSphereVertexData(stackCount, sliceCount);
+        int[]   indexData  = buildSphereIndexData(stackCount, sliceCount);
+        indexCount         = indexData.length;
+        uploadIndexedMeshToGpu(vertexData, indexData);
     }
 
-    private float[] buildVertexData(int stackCount, int sliceCount) {
+    // Constructor 2 — from loaded mesh data
+    public Mesh(MeshData meshData) {
+        indexCount = -1;
+        uploadFlatMeshToGpu(meshData.vertexData, meshData.vertexCount);
+    }
+
+    private float[] buildSphereVertexData(int stackCount, int sliceCount) {
         List<Float> vertices = new ArrayList<>();
 
         for (int stackIndex = 0; stackIndex <= stackCount; stackIndex++) {
@@ -37,22 +44,12 @@ public class Mesh {
             for (int sliceIndex = 0; sliceIndex <= sliceCount; sliceIndex++) {
                 float theta = (float)(2 * Math.PI * sliceIndex / sliceCount);
 
-                // Position on unit sphere
                 float x = (float)(Math.sin(phi) * Math.cos(theta));
                 float y = (float)(Math.cos(phi));
                 float z = (float)(Math.sin(phi) * Math.sin(theta));
 
-                // Position
-                vertices.add(x);
-                vertices.add(y);
-                vertices.add(z);
-
-                // Normal (same as position on a unit sphere)
-                vertices.add(x);
-                vertices.add(y);
-                vertices.add(z);
-
-                // Electrode value — starts at 0, updated each frame by the data stream
+                vertices.add(x); vertices.add(y); vertices.add(z);
+                vertices.add(x); vertices.add(y); vertices.add(z);
                 vertices.add(0.0f);
             }
         }
@@ -62,20 +59,18 @@ public class Mesh {
         return vertexArray;
     }
 
-    private int[] buildIndexData(int stackCount, int sliceCount) {
+    private int[] buildSphereIndexData(int stackCount, int sliceCount) {
         List<Integer> indices = new ArrayList<>();
 
         for (int stackIndex = 0; stackIndex < stackCount; stackIndex++) {
             for (int sliceIndex = 0; sliceIndex < sliceCount; sliceIndex++) {
-                int topLeft = stackIndex * (sliceCount + 1) + sliceIndex;
+                int topLeft    = stackIndex * (sliceCount + 1) + sliceIndex;
                 int bottomLeft = topLeft + sliceCount + 1;
 
-                // First triangle of quad
                 indices.add(topLeft);
                 indices.add(bottomLeft);
                 indices.add(topLeft + 1);
 
-                // Second triangle of quad
                 indices.add(bottomLeft);
                 indices.add(bottomLeft + 1);
                 indices.add(topLeft + 1);
@@ -85,51 +80,71 @@ public class Mesh {
         return indices.stream().mapToInt(Integer::intValue).toArray();
     }
 
-    private void uploadToGpu(float[] vertexData, int[] indexData) {
-        vertexArrayObjectId = glGenVertexArrays();
-        vertexBufferObjectId = glGenBuffers();
+    private void uploadIndexedMeshToGpu(float[] vertexData, int[] indexData) {
+        vertexArrayObjectId   = glGenVertexArrays();
+        vertexBufferObjectId  = glGenBuffers();
         elementBufferObjectId = glGenBuffers();
 
         glBindVertexArray(vertexArrayObjectId);
 
-        // Upload vertex data
         glBindBuffer(GL_ARRAY_BUFFER, vertexBufferObjectId);
         glBufferData(GL_ARRAY_BUFFER, vertexData, GL_DYNAMIC_DRAW);
 
-        // Upload index data
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementBufferObjectId);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexData, GL_STATIC_DRAW);
 
-        // Tell OpenGL how to read position from the buffer
+        setupVertexAttributes();
+        glBindVertexArray(0);
+
+        this.cachedVertexData = vertexData;
+    }
+
+    private void uploadFlatMeshToGpu(float[] vertexData, int vertexCount) {
+        vertexArrayObjectId  = glGenVertexArrays();
+        vertexBufferObjectId = glGenBuffers();
+
+        glBindVertexArray(vertexArrayObjectId);
+
+        glBindBuffer(GL_ARRAY_BUFFER, vertexBufferObjectId);
+        glBufferData(GL_ARRAY_BUFFER, vertexData, GL_DYNAMIC_DRAW);
+
+        setupVertexAttributes();
+        glBindVertexArray(0);
+
+        this.vertexCount      = vertexCount;
+        this.cachedVertexData = vertexData;
+    }
+
+    private void setupVertexAttributes() {
         glVertexAttribPointer(ATTRIB_POSITION, 3, GL_FLOAT, false, STRIDE_BYTES, 0);
         glEnableVertexAttribArray(ATTRIB_POSITION);
 
-        // Tell OpenGL how to read normal from the buffer
         glVertexAttribPointer(ATTRIB_NORMAL, 3, GL_FLOAT, false, STRIDE_BYTES, 3 * Float.BYTES);
         glEnableVertexAttribArray(ATTRIB_NORMAL);
 
-        // Tell OpenGL how to read electrode value from the buffer
         glVertexAttribPointer(ATTRIB_VALUE, 1, GL_FLOAT, false, STRIDE_BYTES, 6 * Float.BYTES);
         glEnableVertexAttribArray(ATTRIB_VALUE);
-
-        glBindVertexArray(0);
     }
 
     public void updateVertexValues(float[] updatedValues) {
-        glBindBuffer(GL_ARRAY_BUFFER, vertexBufferObjectId);
+        if (cachedVertexData == null) return;
 
-        // Only re-upload the value float for each vertex, not the whole buffer
         for (int vertexIndex = 0; vertexIndex < updatedValues.length; vertexIndex++) {
-            int byteOffset = vertexIndex * STRIDE_BYTES + 6 * Float.BYTES;
-            glBufferSubData(GL_ARRAY_BUFFER, byteOffset, new float[]{ updatedValues[vertexIndex] });
+            cachedVertexData[vertexIndex * FLOATS_PER_VERTEX + 6] = updatedValues[vertexIndex];
         }
 
+        glBindBuffer(GL_ARRAY_BUFFER, vertexBufferObjectId);
+        glBufferData(GL_ARRAY_BUFFER, cachedVertexData, GL_DYNAMIC_DRAW);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
 
     public void draw() {
         glBindVertexArray(vertexArrayObjectId);
-        glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);
+        if (indexCount > 0) {
+            glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);
+        } else {
+            glDrawArrays(GL_TRIANGLES, 0, vertexCount);
+        }
         glBindVertexArray(0);
     }
 
