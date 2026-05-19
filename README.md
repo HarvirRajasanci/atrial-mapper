@@ -51,7 +51,7 @@ Producer thread: [simulate]    → [publish]        → [sleep 16ms] → repeat
 ## Stack
 
 - Java 21 + Gradle 8.8
-- LWJGL 3.3.3 (OpenGL 3.3 Core, GLFW)
+- LWJGL 3.3.3 (OpenGL 3.3 Core, GLFW, STB TrueType)
 
 ---
 
