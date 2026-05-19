@@ -23,8 +23,13 @@ public class StlLoader {
     }
 
     private static boolean isAsciiStl(byte[] fileBytes) {
+        if (fileBytes.length >= 84) {
+            int triangleCount = ByteBuffer.wrap(fileBytes, 80, 4)
+                    .order(ByteOrder.LITTLE_ENDIAN).getInt();
+            if (80 + 4 + (50L * triangleCount) == fileBytes.length) return false;
+        }
         String header = new String(fileBytes, 0, Math.min(256, fileBytes.length)).trim();
-        return header.startsWith("solid");
+        return header.toLowerCase().startsWith("solid");
     }
 
     private static MeshData parseAsciiStl(String fileContent) {
@@ -34,24 +39,29 @@ public class StlLoader {
 
         for (String line : lines) {
             String trimmedLine = line.trim();
+            try {
+                if (trimmedLine.startsWith("facet normal")) {
+                    String[] tokens = trimmedLine.split("\\s+");
+                    if (tokens.length < 5) continue;
+                    currentNormal[0] = Float.parseFloat(tokens[2]);
+                    currentNormal[1] = Float.parseFloat(tokens[3]);
+                    currentNormal[2] = Float.parseFloat(tokens[4]);
 
-            if (trimmedLine.startsWith("facet normal")) {
-                String[] tokens = trimmedLine.split("\\s+");
-                currentNormal[0] = Float.parseFloat(tokens[2]);
-                currentNormal[1] = Float.parseFloat(tokens[3]);
-                currentNormal[2] = Float.parseFloat(tokens[4]);
+                } else if (trimmedLine.startsWith("vertex")) {
+                    String[] tokens = trimmedLine.split("\\s+");
+                    if (tokens.length < 4) continue;
+                    float x = Float.parseFloat(tokens[1]);
+                    float y = Float.parseFloat(tokens[2]);
+                    float z = Float.parseFloat(tokens[3]);
 
-            } else if (trimmedLine.startsWith("vertex")) {
-                String[] tokens = trimmedLine.split("\\s+");
-                float x = Float.parseFloat(tokens[1]);
-                float y = Float.parseFloat(tokens[2]);
-                float z = Float.parseFloat(tokens[3]);
-
-                vertexData.add(x); vertexData.add(y); vertexData.add(z);
-                vertexData.add(currentNormal[0]);
-                vertexData.add(currentNormal[1]);
-                vertexData.add(currentNormal[2]);
-                vertexData.add(0.0f);
+                    vertexData.add(x); vertexData.add(y); vertexData.add(z);
+                    vertexData.add(currentNormal[0]);
+                    vertexData.add(currentNormal[1]);
+                    vertexData.add(currentNormal[2]);
+                    vertexData.add(0.0f);
+                }
+            } catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
+                System.err.println("Malformed STL line, skipping: " + trimmedLine);
             }
         }
 
