@@ -56,7 +56,7 @@ public class Camera {
     }
 
     public float[] computeViewMatrix() {
-        float yawRadians   = (float) Math.toRadians(yawDegrees);
+        float yawRadians   = (float) Math.toRadians(yawDegrees % 360f);
         float pitchRadians = (float) Math.toRadians(pitchDegrees);
 
         float cameraX = (float)(distanceFromTarget * Math.cos(pitchRadians) * Math.sin(yawRadians));

@@ -43,6 +43,8 @@ public final class MatrixMath {
     }
 
     public static float[] multiply(float[] matrixA, float[] matrixB) {
+        if (matrixA.length != 16 || matrixB.length != 16)
+            throw new IllegalArgumentException("Matrices must be 4x4 (16 elements)");
         float[] result = new float[16];
         for (int row = 0; row < 4; row++)
             for (int col = 0; col < 4; col++)

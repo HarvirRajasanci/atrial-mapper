@@ -15,6 +15,9 @@ public class Shader {
         String vertexSource   = loadResource(vertexResourcePath);
         String fragmentSource = loadResource(fragmentResourcePath);
 
+        if (vertexSource.isEmpty() || fragmentSource.isEmpty())
+            throw new IOException("Shader source is empty");
+
         int vertexShaderId   = compileShader(GL_VERTEX_SHADER, vertexSource);
         int fragmentShaderId = compileShader(GL_FRAGMENT_SHADER, fragmentSource);
 

@@ -7,7 +7,15 @@ public class DataSimulator {
     private final float[] vertexPositions; // x, y, z per vertex
     private float simulationTime = 0f;
 
-    private static final float ANIMATION_SPEED = 0.5f;
+    private static final float ANIMATION_SPEED             = 0.5f;
+    private static final float ACTIVATION_WAVE_FREQUENCY   = 3.0f;
+    private static final float ACTIVATION_WAVE_SPEED       = 2.0f;
+    private static final float REENTRANT_WAVE_FREQUENCY    = 6.0f;
+    private static final float REENTRANT_WAVE_SPEED        = 1.5f;
+    private static final float REENTRANT_WAVE_AMPLITUDE    = 0.3f;
+    private static final float REENTRANT_SPATIAL_SPREAD    = 2.0f;
+    private static final float NORMALIZATION_OFFSET        = 1.3f;
+    private static final float NORMALIZATION_SCALE         = 2.6f;
 
     public DataSimulator(int vertexCount, float[] cachedVertexData) {
         this.vertexCount = vertexCount;
@@ -42,15 +50,19 @@ public class DataSimulator {
             );
 
             float activationWave = (float)(
-                    Math.sin(distanceFromOrigin * 3.0 - simulationTime * 2.0)
+                    Math.sin(distanceFromOrigin * ACTIVATION_WAVE_FREQUENCY
+                            - simulationTime * ACTIVATION_WAVE_SPEED)
             );
 
             float reentrantWave = (float)(
-                    0.3 * Math.sin(distanceFromOrigin * 6.0 + simulationTime * 1.5 + y * 2.0)
+                    REENTRANT_WAVE_AMPLITUDE * Math.sin(
+                            distanceFromOrigin * REENTRANT_WAVE_FREQUENCY
+                            + simulationTime * REENTRANT_WAVE_SPEED
+                            + y * REENTRANT_SPATIAL_SPREAD)
             );
 
             float combinedSignal = activationWave + reentrantWave;
-            electrodeValues[vertexIndex] = (combinedSignal + 1.3f) / 2.6f;
+            electrodeValues[vertexIndex] = (combinedSignal + NORMALIZATION_OFFSET) / NORMALIZATION_SCALE;
         }
     }
 
