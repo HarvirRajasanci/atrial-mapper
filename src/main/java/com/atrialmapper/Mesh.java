@@ -7,12 +7,15 @@ import static org.lwjgl.opengl.GL33.*;
 
 public class Mesh {
 
+    private enum MeshType { INDEXED, FLAT }
+
     private int vertexArrayObjectId;
     private int vertexBufferObjectId;
     private int elementBufferObjectId;
     private int indexCount;
     private int vertexCount = 0;
     private float[] cachedVertexData;
+    private MeshType meshType;
 
     private static final int FLOATS_PER_VERTEX = 7;
     private static final int STRIDE_BYTES      = FLOATS_PER_VERTEX * Float.BYTES;
@@ -23,6 +26,7 @@ public class Mesh {
 
     // Constructor 1 — procedural sphere
     public Mesh(int stackCount, int sliceCount) {
+        meshType           = MeshType.INDEXED;
         float[] vertexData = buildSphereVertexData(stackCount, sliceCount);
         int[]   indexData  = buildSphereIndexData(stackCount, sliceCount);
         indexCount         = indexData.length;
@@ -31,7 +35,7 @@ public class Mesh {
 
     // Constructor 2 — from loaded mesh data
     public Mesh(MeshData meshData) {
-        indexCount = -1;
+        meshType = MeshType.FLAT;
         uploadFlatMeshToGpu(meshData.vertexData, meshData.vertexCount);
     }
 
@@ -127,7 +131,9 @@ public class Mesh {
     }
 
     public void updateVertexValues(float[] updatedValues) {
-        if (cachedVertexData == null) return;
+        if (updatedValues == null || cachedVertexData == null) return;
+        if ((long) updatedValues.length * FLOATS_PER_VERTEX > cachedVertexData.length)
+            throw new IllegalArgumentException("Updated values exceed vertex count");
 
         for (int vertexIndex = 0; vertexIndex < updatedValues.length; vertexIndex++) {
             cachedVertexData[vertexIndex * FLOATS_PER_VERTEX + 6] = updatedValues[vertexIndex];
@@ -140,10 +146,9 @@ public class Mesh {
 
     public void draw() {
         glBindVertexArray(vertexArrayObjectId);
-        if (indexCount > 0) {
-            glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);
-        } else {
-            glDrawArrays(GL_TRIANGLES, 0, vertexCount);
+        switch (meshType) {
+            case INDEXED -> glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);
+            case FLAT    -> glDrawArrays(GL_TRIANGLES, 0, vertexCount);
         }
         glBindVertexArray(0);
     }
