@@ -118,7 +118,9 @@ public class Main {
             shader.setUniformVec3("uLightDirection", 1f, 1.5f, 1f);
 
             sphereMesh.draw();
+            if (isWireframeMode) glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
             colorLegend.draw();
+            if (isWireframeMode) glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
             updateFpsCounter();
 
             windowManager.swapAndPoll();
