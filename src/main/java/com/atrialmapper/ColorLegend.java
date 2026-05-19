@@ -17,19 +17,32 @@ public class ColorLegend {
     private final int screenWidth;
     private final int screenHeight;
 
-    private static final float BAR_LEFT       = 1180f;
-    private static final float BAR_RIGHT      = 1210f;
-    private static final float BAR_TOP        = 80f;
-    private static final float BAR_BOTTOM     = 640f;
-    private static final int   GRADIENT_STEPS = 100;
-    private static final float LABEL_X        = 1120f;
+    private static final int   GRADIENT_STEPS      = 100;
+    private static final float BAR_LEFT_FRACTION   = 1180f / 1280f;
+    private static final float BAR_RIGHT_FRACTION  = 1210f / 1280f;
+    private static final float BAR_TOP_FRACTION    =   80f /  720f;
+    private static final float BAR_BOTTOM_FRACTION =  640f /  720f;
+    private static final float LABEL_X_FRACTION    = 1120f / 1280f;
+
+    private final float barLeft;
+    private final float barRight;
+    private final float barTop;
+    private final float barBottom;
+    private final float labelX;
 
     public ColorLegend(int screenWidth, int screenHeight) throws IOException {
         this.screenWidth  = screenWidth;
         this.screenHeight = screenHeight;
+        this.barLeft   = screenWidth  * BAR_LEFT_FRACTION;
+        this.barRight  = screenWidth  * BAR_RIGHT_FRACTION;
+        this.barTop    = screenHeight * BAR_TOP_FRACTION;
+        this.barBottom = screenHeight * BAR_BOTTOM_FRACTION;
+        this.labelX    = screenWidth  * LABEL_X_FRACTION;
         shaderProgramId   = ShaderCompiler.buildProgram("shaders/legend.vert", "shaders/legend.frag");
-        buildLegendMesh();
         fontRenderer = new FontRenderer();
+        if (fontRenderer == null)
+            throw new IllegalStateException("FontRenderer must not be null");
+        buildLegendMesh();
     }
 
     private void buildLegendMesh() {
@@ -40,18 +53,18 @@ public class ColorLegend {
             float bottomValue = (float) stepIndex / GRADIENT_STEPS;
             float topValue    = (float)(stepIndex + 1) / GRADIENT_STEPS;
 
-            float bottomY = BAR_TOP + (BAR_BOTTOM - BAR_TOP) * (1f - bottomValue);
-            float topY    = BAR_TOP + (BAR_BOTTOM - BAR_TOP) * (1f - topValue);
+            float bottomY = barTop + (barBottom - barTop) * (1f - bottomValue);
+            float topY    = barTop + (barBottom - barTop) * (1f - topValue);
 
             float[] bottomColor = heatmapColor(bottomValue);
             float[] topColor    = heatmapColor(topValue);
 
-            vertexDataIndex = addVertex(vertexData, vertexDataIndex, BAR_LEFT,  bottomY, bottomColor);
-            vertexDataIndex = addVertex(vertexData, vertexDataIndex, BAR_RIGHT, bottomY, bottomColor);
-            vertexDataIndex = addVertex(vertexData, vertexDataIndex, BAR_RIGHT, topY,    topColor);
-            vertexDataIndex = addVertex(vertexData, vertexDataIndex, BAR_LEFT,  bottomY, bottomColor);
-            vertexDataIndex = addVertex(vertexData, vertexDataIndex, BAR_RIGHT, topY,    topColor);
-            vertexDataIndex = addVertex(vertexData, vertexDataIndex, BAR_LEFT,  topY,    topColor);
+            vertexDataIndex = addVertex(vertexData, vertexDataIndex, barLeft,  bottomY, bottomColor);
+            vertexDataIndex = addVertex(vertexData, vertexDataIndex, barRight, bottomY, bottomColor);
+            vertexDataIndex = addVertex(vertexData, vertexDataIndex, barRight, topY,    topColor);
+            vertexDataIndex = addVertex(vertexData, vertexDataIndex, barLeft,  bottomY, bottomColor);
+            vertexDataIndex = addVertex(vertexData, vertexDataIndex, barRight, topY,    topColor);
+            vertexDataIndex = addVertex(vertexData, vertexDataIndex, barLeft,  topY,    topColor);
         }
 
         vertexArrayObjectId  = glGenVertexArrays();
@@ -96,7 +109,7 @@ public class ColorLegend {
         glBindVertexArray(0);
 
         // Title
-        fontRenderer.drawText("mV", LABEL_X + 20f, 65f,
+        fontRenderer.drawText("mV", labelX + 20f, barTop - 15f,
                 1f, 1f, 1f, screenWidth, screenHeight);
 
         // Tick labels mapped to realistic atrial voltage range
@@ -111,8 +124,8 @@ public class ColorLegend {
     }
 
     private void drawTickLabel(String labelText, float normalizedValue) {
-        float pixelY = BAR_TOP + (BAR_BOTTOM - BAR_TOP) * (1f - normalizedValue) + 5f;
-        fontRenderer.drawText(labelText, LABEL_X, pixelY,
+        float pixelY = barTop + (barBottom - barTop) * (1f - normalizedValue) + 5f;
+        fontRenderer.drawText(labelText, labelX, pixelY,
                 0.9f, 0.9f, 0.9f, screenWidth, screenHeight);
     }
 
