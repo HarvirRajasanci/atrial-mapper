@@ -26,7 +26,9 @@ public class ElectrodeDataStream {
     public void stop() {
         isRunning = false;
         try {
-            producerThread.join(1000);
+            producerThread.join(2000);
+            if (producerThread.isAlive())
+                System.err.println("Warning: electrode data thread did not terminate");
         } catch (InterruptedException interruptedException) {
             Thread.currentThread().interrupt();
         }
