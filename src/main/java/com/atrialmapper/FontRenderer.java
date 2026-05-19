@@ -31,7 +31,7 @@ public class FontRenderer {
         bakedCharData   = STBTTBakedChar.malloc(CHAR_COUNT);
         buildFontTexture();
         buildRenderingBuffers();
-        shaderProgramId = buildShaderProgram();
+        shaderProgramId = ShaderCompiler.buildProgram("shaders/font.vert", "shaders/font.frag");
     }
 
     private void buildFontTexture() throws IOException {
@@ -78,44 +78,6 @@ public class FontRenderer {
         glEnableVertexAttribArray(1);
 
         glBindVertexArray(0);
-    }
-
-    private int buildShaderProgram() throws IOException {
-        int vertexShaderId   = compileShader(GL_VERTEX_SHADER,
-                loadResource("shaders/font.vert"));
-        int fragmentShaderId = compileShader(GL_FRAGMENT_SHADER,
-                loadResource("shaders/font.frag"));
-
-        int programId = glCreateProgram();
-        glAttachShader(programId, vertexShaderId);
-        glAttachShader(programId, fragmentShaderId);
-        glLinkProgram(programId);
-        glDeleteShader(vertexShaderId);
-        glDeleteShader(fragmentShaderId);
-
-        if (glGetProgrami(programId, GL_LINK_STATUS) == GL_FALSE)
-            throw new RuntimeException("Font shader link error: "
-                    + glGetProgramInfoLog(programId));
-
-        return programId;
-    }
-
-    private String loadResource(String resourcePath) throws IOException {
-        InputStream inputStream = getClass().getClassLoader()
-                .getResourceAsStream(resourcePath);
-        if (inputStream == null)
-            throw new IOException("Could not find shader resource: " + resourcePath);
-        return new String(inputStream.readAllBytes());
-    }
-
-    private int compileShader(int shaderType, String shaderSource) {
-        int shaderId = glCreateShader(shaderType);
-        glShaderSource(shaderId, shaderSource);
-        glCompileShader(shaderId);
-        if (glGetShaderi(shaderId, GL_COMPILE_STATUS) == GL_FALSE)
-            throw new RuntimeException("Font shader compile error: "
-                    + glGetShaderInfoLog(shaderId));
-        return shaderId;
     }
 
     public void drawText(String text, float pixelX, float pixelY,

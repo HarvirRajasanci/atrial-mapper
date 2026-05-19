@@ -3,7 +3,6 @@ package com.atrialmapper;
 import org.lwjgl.system.MemoryStack;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.FloatBuffer;
 
 import static org.lwjgl.opengl.GL33.*;
@@ -28,47 +27,9 @@ public class ColorLegend {
     public ColorLegend(int screenWidth, int screenHeight) throws IOException {
         this.screenWidth  = screenWidth;
         this.screenHeight = screenHeight;
-        shaderProgramId   = buildShaderProgram();
+        shaderProgramId   = ShaderCompiler.buildProgram("shaders/legend.vert", "shaders/legend.frag");
         buildLegendMesh();
         fontRenderer = new FontRenderer();
-    }
-
-    private int buildShaderProgram() throws IOException {
-        int vertexShaderId   = compileShader(GL_VERTEX_SHADER,
-                loadResource("shaders/legend.vert"));
-        int fragmentShaderId = compileShader(GL_FRAGMENT_SHADER,
-                loadResource("shaders/legend.frag"));
-
-        int programId = glCreateProgram();
-        glAttachShader(programId, vertexShaderId);
-        glAttachShader(programId, fragmentShaderId);
-        glLinkProgram(programId);
-        glDeleteShader(vertexShaderId);
-        glDeleteShader(fragmentShaderId);
-
-        if (glGetProgrami(programId, GL_LINK_STATUS) == GL_FALSE)
-            throw new RuntimeException("Legend shader link error: "
-                    + glGetProgramInfoLog(programId));
-
-        return programId;
-    }
-
-    private String loadResource(String resourcePath) throws IOException {
-        InputStream inputStream = getClass().getClassLoader()
-                .getResourceAsStream(resourcePath);
-        if (inputStream == null)
-            throw new IOException("Could not find resource: " + resourcePath);
-        return new String(inputStream.readAllBytes());
-    }
-
-    private int compileShader(int shaderType, String shaderSource) {
-        int shaderId = glCreateShader(shaderType);
-        glShaderSource(shaderId, shaderSource);
-        glCompileShader(shaderId);
-        if (glGetShaderi(shaderId, GL_COMPILE_STATUS) == GL_FALSE)
-            throw new RuntimeException("Legend shader compile error: "
-                    + glGetShaderInfoLog(shaderId));
-        return shaderId;
     }
 
     private void buildLegendMesh() {
