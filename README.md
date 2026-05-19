@@ -2,6 +2,8 @@
 
 A real-time 3D cardiac surface mapping demo built with Java and OpenGL (LWJGL).
 
+[![Demo](https://img.youtube.com/vi/_L4-h305Kls/maxresdefault.jpg)](https://youtu.be/_L4-h305Kls)
+
 ---
 
 ## What it does
