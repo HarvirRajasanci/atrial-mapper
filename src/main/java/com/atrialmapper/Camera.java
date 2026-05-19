@@ -12,6 +12,12 @@ public class Camera {
     private double lastMouseY = 0;
     private boolean isMouseDragging = false;
 
+    private final float[] forwardVector  = new float[3];
+    private final float[] rightVector    = new float[3];
+    private final float[] upVector       = new float[3];
+    private final float[] worldUp        = { 0f, 1f, 0f };
+    private final float[] cameraPosition = new float[3];
+
     private static final float ORBIT_SENSITIVITY = 0.4f;
     private static final float SCROLL_SENSITIVITY = 0.2f;
     private static final float MIN_DISTANCE = 1.5f;
@@ -63,12 +69,14 @@ public class Camera {
         float cameraY = (float)(distanceFromTarget * Math.sin(pitchRadians));
         float cameraZ = (float)(distanceFromTarget * Math.cos(pitchRadians) * Math.cos(yawRadians));
 
-        float[] forwardVector = normalize(new float[]{ -cameraX, -cameraY, -cameraZ });
-        float[] worldUp       = { 0f, 1f, 0f };
-        float[] rightVector   = normalize(cross(forwardVector, worldUp));
-        float[] upVector      = cross(rightVector, forwardVector);
+        cameraPosition[0] = cameraX;
+        cameraPosition[1] = cameraY;
+        cameraPosition[2] = cameraZ;
 
-        float[] cameraPosition = { cameraX, cameraY, cameraZ };
+        normalizeInto(new float[]{ -cameraX, -cameraY, -cameraZ }, forwardVector);
+        crossInto(forwardVector, worldUp, rightVector);
+        normalizeInto(rightVector, rightVector);
+        crossInto(rightVector, forwardVector, upVector);
 
         return new float[]{
                 rightVector[0],   upVector[0],  -forwardVector[0],  0f,
@@ -80,21 +88,18 @@ public class Camera {
         };
     }
 
-    private float[] normalize(float[] vector) {
+    private void normalizeInto(float[] src, float[] dest) {
         float length = (float) Math.sqrt(
-                vector[0] * vector[0] +
-                        vector[1] * vector[1] +
-                        vector[2] * vector[2]
-        );
-        return new float[]{ vector[0] / length, vector[1] / length, vector[2] / length };
+                src[0] * src[0] + src[1] * src[1] + src[2] * src[2]);
+        dest[0] = src[0] / length;
+        dest[1] = src[1] / length;
+        dest[2] = src[2] / length;
     }
 
-    private float[] cross(float[] vectorA, float[] vectorB) {
-        return new float[]{
-                vectorA[1] * vectorB[2] - vectorA[2] * vectorB[1],
-                vectorA[2] * vectorB[0] - vectorA[0] * vectorB[2],
-                vectorA[0] * vectorB[1] - vectorA[1] * vectorB[0]
-        };
+    private void crossInto(float[] a, float[] b, float[] dest) {
+        dest[0] = a[1] * b[2] - a[2] * b[1];
+        dest[1] = a[2] * b[0] - a[0] * b[2];
+        dest[2] = a[0] * b[1] - a[1] * b[0];
     }
 
     private float dot(float[] vectorA, float[] vectorB) {
